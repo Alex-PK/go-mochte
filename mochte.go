@@ -4,30 +4,31 @@ import (
 	"net/http"
 	"testing"
 	"time"
+	"context"
 )
 
 type Server struct {
 	t           *testing.T
+	srv         *http.Server
 	url         string
 	handlers    []*Handler
 	handlerStep int
 	listenMode  int
 }
 
-func New(t *testing.T, url string) Server {
-	if url == "" {
-		// TODO: generate URL
-		generatedUrl := "localhost:49999"
-		url = generatedUrl
-	}
+func New(t *testing.T) *Server {
 
-	return Server{
+	self := &Server{
 		t:           t,
-		url:         url,
+		url:         ":49999", // TODO
 		handlers:    []*Handler{},
 		handlerStep: 0,
 		listenMode:  LISTEN_ANY,
 	}
+
+	self.srv = &http.Server{Addr: self.url, Handler: self}
+
+	return self
 }
 
 const (
@@ -35,36 +36,48 @@ const (
 	LISTEN_ANY
 )
 
-func (self Server) Add(h *Handler) Server {
+func (self *Server) Url() string {
+	return self.url
+}
+
+func (self *Server) Add(h *Handler) *Server {
 	self.handlers = append(self.handlers, h)
 	return self
 }
 
-func (self Server) ListenOrdered() Server {
+func (self *Server) ListenOrdered() *Server {
 	self.listenMode = LISTEN_ORDERED
 	return self
 }
 
-func (self Server) ListenAny() Server {
+func (self *Server) ListenAny() *Server {
 	self.listenMode = LISTEN_ANY
 	return self
 }
 
-func (self Server) Run() {
+func (self *Server) Run() *Server {
+
 	go func() {
-		if err := http.ListenAndServe(self.url, &self); err != nil {
+		if err := self.srv.ListenAndServe(); err != nil {
 			self.t.Errorf("Unable to start HTTP server: %s", err)
 		}
 	}()
 
 	time.Sleep(100 * time.Millisecond)
+
+	return self
 }
 
-func (self Server) route(req *http.Request) *Handler {
+func (self *Server) Close() {
+	self.t.Log("Shutting down server")
+	self.srv.Shutdown(context.Background())
+}
+
+func (self *Server) route(req *http.Request) *Handler {
 	if self.listenMode == LISTEN_ORDERED {
 		handler := self.handlers[self.handlerStep]
 		self.handlerStep += 1
-		if handler.isHandling(req) {
+		if handler != nil && handler.isHandling(req) {
 			return handler
 		}
 	} else {
