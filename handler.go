@@ -3,6 +3,7 @@ package mochte
 import (
 	"net/http"
 	"strings"
+	"testing"
 )
 
 type Handler struct {
@@ -14,17 +15,25 @@ type Handler struct {
 	bodyFn      func() string
 
 	callCount int
+
+	runtimeChecks []checkFn
+	finalChecks   []checkFn
 }
+
+type checkFn func(*testing.T)
 
 func NewHandler() *Handler {
 	return &Handler{
-		method: GET,
-		path: "/",
-		status: 200,
+		method:      GET,
+		path:        "/",
+		status:      200,
 		contentType: HTML,
-		bodyFn: func() string { return "" },
+		bodyFn:      func() string { return "" },
 
 		callCount: 0,
+
+		runtimeChecks: []checkFn{},
+		finalChecks:   []checkFn{},
 	}
 }
 
@@ -78,6 +87,33 @@ func (self *Handler) BodyFn(f func() string) *Handler {
 	return self
 }
 
+func (self *Handler) AssertIsCalledNTimes(n int) *Handler {
+	self.finalChecks = append(self.finalChecks, func(t *testing.T) {
+		if n != self.callCount {
+			t.Errorf("Expecting handler to be called %d times, called %d times", n, self.callCount)
+		}
+	})
+	return self
+}
+
+func (self *Handler) AssertIsCalledAtLeastNTimes(n int) *Handler {
+	self.finalChecks = append(self.finalChecks, func(t *testing.T) {
+		if self.callCount >= n {
+			t.Errorf("Expecting handler to be called at least %d times, called %d times", n, self.callCount)
+		}
+	})
+	return self
+}
+
+func (self *Handler) AssertIsCalledNoMoreThanNTimes(n int) *Handler {
+	self.finalChecks = append(self.finalChecks, func(t *testing.T) {
+		if self.callCount < n {
+			t.Errorf("Expecting handler to be called at least %d times, called %d times", n, self.callCount)
+		}
+	})
+	return self
+}
+
 /*
  * 	Server-called methods
  */
@@ -92,6 +128,24 @@ func (self *Handler) isHandling(req *http.Request) bool {
 
 	// TODO: improve checks
 	return true
+}
+
+func (self *Handler) handle(t *testing.T, w http.ResponseWriter, req *http.Request) {
+	self.incCounter()
+
+	for _, check := range self.runtimeChecks {
+		check(t)
+	}
+
+	w.Header().Add("Content-type", self.getContentType())
+	w.WriteHeader(self.getStatus())
+	w.Write([]byte(self.getBody()))
+}
+
+func (self *Handler) runFinalChecks(t *testing.T) {
+	for _, check := range self.finalChecks {
+		check(t)
+	}
 }
 
 func (self *Handler) getStatus() int {

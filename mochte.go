@@ -56,7 +56,6 @@ func (self *Server) ListenAny() *Server {
 }
 
 func (self *Server) Run() *Server {
-
 	go func() {
 		if err := self.srv.ListenAndServe(); err != nil {
 			self.t.Errorf("Unable to start HTTP server: %s", err)
@@ -71,7 +70,14 @@ func (self *Server) Run() *Server {
 func (self *Server) Close() {
 	self.t.Log("Shutting down server")
 	self.srv.Shutdown(context.Background())
+	for _, handler := range self.handlers {
+		handler.runFinalChecks(self.t)
+	}
 }
+
+/*
+ *	Internally used functions
+ */
 
 func (self *Server) route(req *http.Request) *Handler {
 	if self.listenMode == LISTEN_ORDERED {
@@ -98,8 +104,5 @@ func (self *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	handler.incCounter()
-	w.Header().Add("Content-type", handler.getContentType())
-	w.WriteHeader(handler.getStatus())
-	w.Write([]byte(handler.getBody()))
+	handler.handle(self.t, w, req)
 }
