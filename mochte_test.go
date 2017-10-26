@@ -6,20 +6,17 @@ import (
 )
 
 func TestBasics(t *testing.T) {
-	s := New(t)
-	defer s.Close()
-
-	s.
-	ListenOrdered().
-		Add(NewHandler().
+	defer NewServerOn(t, ":49999").
+		ListenOrdered().
+		Add(NewRoute().
 		Method(GET).
 		Path("/").
 		Status(200).
 		Body("OK...").
 		AssertIsCalledAtLeastNTimes(1),
-	).Run()
+	).Run().Close()
 
-	res, err := http.Get(s.Url() + "/")
+	res, err := http.Get("http://localhost:49999" + "/")
 	if err != nil {
 		t.Error(err)
 	}

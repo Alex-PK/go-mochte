@@ -7,75 +7,98 @@ import (
 	"context"
 )
 
+// Server defines the mock HTTP server
 type Server struct {
-	t           *testing.T
-	srv         *http.Server
-	url         string
-	handlers    []*Handler
-	handlerStep int
-	listenMode  int
+	t          *testing.T
+	srv        *http.Server
+	addr       string
+	routes     []*Route
+	routeStep  int
+	listenMode int
 }
 
-func New(t *testing.T) *Server {
+// NewServer creates a new test server on a random port on localhost.
+func NewServer(t *testing.T) *Server {
+	return NewServerOn(t, ":49999") // TODO: generate "randomly"
+}
 
-	self := &Server{
-		t:           t,
-		url:         ":49999", // TODO
-		handlers:    []*Handler{},
-		handlerStep: 0,
-		listenMode:  LISTEN_ANY,
+// NewServerOn creates a new test server on an address you provide
+func NewServerOn(t *testing.T, addr string) *Server {
+	server := &Server{
+		t:          t,
+		addr:       addr,
+		routes:     []*Route{},
+		routeStep:  0,
+		listenMode: listenAny,
 	}
 
-	self.srv = &http.Server{Addr: self.url, Handler: self}
+	server.srv = &http.Server{Addr: server.addr, Handler: server}
 
-	return self
+	return server
 }
 
 const (
-	LISTEN_ORDERED = iota
-	LISTEN_ANY
+	listenOrdered = iota
+	listenAny
 )
 
-func (self *Server) Url() string {
-	return "http://" + self.url
+// URL returns a URL that can be used by an HTTP Client to connect to the server
+func (server *Server) URL() string {
+	return "http://" + server.addr
 }
 
-func (self *Server) Add(h *Handler) *Server {
-	self.handlers = append(self.handlers, h)
-	return self
+// Add allows to add a route handler to the list of tested routes
+func (server *Server) Add(h *Route) *Server {
+	server.routes = append(server.routes, h)
+	return server
 }
 
-func (self *Server) ListenOrdered() *Server {
-	self.listenMode = LISTEN_ORDERED
-	return self
+// ListenOrdered sets the server in "ordered mode". The added routes must be called in order by the client,
+// or make the test fail.
+//
+// Each route can also have its own assertions
+func (server *Server) ListenOrdered() *Server {
+	server.listenMode = listenOrdered
+	return server
 }
 
-func (self *Server) ListenAny() *Server {
-	self.listenMode = LISTEN_ANY
-	return self
+// ListenAny sets the server in "any order mode". The routes can be definied in any order, and the server does not
+// expect them to be called in a specific order.
+//
+// Each route should have its own assertions.
+func (server *Server) ListenAny() *Server {
+	server.listenMode = listenAny
+	return server
 }
 
-func (self *Server) Run() *Server {
+// Run spawns a goroutine containing the server itself, effectively starting to listen for connections.
+//
+// This function must be called before making connections to the server, for the tests to work
+func (server *Server) Run() *Server {
 	go func() {
-		if err := self.srv.ListenAndServe(); err != nil {
-			self.t.Log(err)
+		if err := server.srv.ListenAndServe(); err != nil {
+			server.t.Log(err)
 		}
 	}()
 
 	time.Sleep(100 * time.Millisecond)
 
-	return self
+	return server
 }
 
-func (self *Server) Close() {
-	self.t.Log("Shutting down server")
-	err := self.srv.Shutdown(context.Background())
+// Close shuts down the server and runs the final checks on all the routes.
+//
+// This function must be called at the end of the test case (or with defer) to turn off the server and
+// run the final tests.
+func (server *Server) Close() {
+	server.t.Log("Shutting down server")
+	err := server.srv.Shutdown(context.Background())
 	if err != nil {
-		self.t.Fatal("Failed to shutdown the server")
+		server.t.Fatal("Failed to shutdown the server")
 	}
 
-	for _, handler := range self.handlers {
-		handler.runFinalChecks(self.t)
+	for _, route := range server.routes {
+		route.runFinalChecks(server.t)
 	}
 }
 
@@ -83,17 +106,17 @@ func (self *Server) Close() {
  *	Internally used functions
  */
 
-func (self *Server) route(req *http.Request) *Handler {
-	if self.listenMode == LISTEN_ORDERED {
-		handler := self.handlers[self.handlerStep]
-		self.handlerStep += 1
-		if handler != nil && handler.isHandling(req) {
-			return handler
+func (server *Server) route(req *http.Request) *Route {
+	if server.listenMode == listenOrdered {
+		route := server.routes[server.routeStep]
+		server.routeStep++
+		if route != nil && route.isHandling(req) {
+			return route
 		}
 	} else {
-		for _, handler := range self.handlers {
-			if handler.isHandling(req) {
-				return handler
+		for _, route := range server.routes {
+			if route.isHandling(req) {
+				return route
 			}
 		}
 	}
@@ -101,12 +124,12 @@ func (self *Server) route(req *http.Request) *Handler {
 	return nil
 }
 
-func (self *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	handler := self.route(req)
-	if handler == nil {
-		self.t.Errorf("Unexpected endpoint called: %s %s", req.Method, req.RequestURI)
+func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	route := server.route(req)
+	if route == nil {
+		server.t.Errorf("Unexpected endpoint called: %s %s", req.Method, req.RequestURI)
 		return
 	}
 
-	handler.handle(self.t, w, req)
+	route.handle(server.t, w, req)
 }
