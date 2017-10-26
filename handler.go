@@ -16,11 +16,12 @@ type Handler struct {
 
 	callCount int
 
+	failed        bool
 	runtimeChecks []checkFn
 	finalChecks   []checkFn
 }
 
-type checkFn func(*testing.T)
+type checkFn func(*testing.T) bool
 
 func NewHandler() *Handler {
 	return &Handler{
@@ -88,28 +89,34 @@ func (self *Handler) BodyFn(f func() string) *Handler {
 }
 
 func (self *Handler) AssertIsCalledNTimes(n int) *Handler {
-	self.finalChecks = append(self.finalChecks, func(t *testing.T) {
+	self.finalChecks = append(self.finalChecks, func(t *testing.T) bool {
 		if n != self.callCount {
-			t.Errorf("Expecting handler to be called %d times, called %d times", n, self.callCount)
+			t.Logf("Expecting handler to be called %d time(s), called %d time(s)", n, self.callCount)
+			return true
 		}
+		return false
 	})
 	return self
 }
 
 func (self *Handler) AssertIsCalledAtLeastNTimes(n int) *Handler {
-	self.finalChecks = append(self.finalChecks, func(t *testing.T) {
-		if self.callCount >= n {
-			t.Errorf("Expecting handler to be called at least %d times, called %d times", n, self.callCount)
+	self.finalChecks = append(self.finalChecks, func(t *testing.T) bool {
+		if self.callCount < n {
+			t.Logf("Expecting handler to be called at least %d time(s), called %d time(s)", n, self.callCount)
+			return true
 		}
+		return false
 	})
 	return self
 }
 
 func (self *Handler) AssertIsCalledNoMoreThanNTimes(n int) *Handler {
-	self.finalChecks = append(self.finalChecks, func(t *testing.T) {
-		if self.callCount < n {
-			t.Errorf("Expecting handler to be called at least %d times, called %d times", n, self.callCount)
+	self.finalChecks = append(self.finalChecks, func(t *testing.T) bool {
+		if self.callCount > n {
+			t.Logf("Expecting handler to be called at least %d time(s), called %d time(s)", n, self.callCount)
+			return true
 		}
+		return false
 	})
 	return self
 }
@@ -133,8 +140,9 @@ func (self *Handler) isHandling(req *http.Request) bool {
 func (self *Handler) handle(t *testing.T, w http.ResponseWriter, req *http.Request) {
 	self.incCounter()
 
+	t.Logf("Running %d request checks on %s %s", len(self.runtimeChecks), self.method, self.path)
 	for _, check := range self.runtimeChecks {
-		check(t)
+		self.failed = check(t) || self.failed
 	}
 
 	w.Header().Add("Content-type", self.getContentType())
@@ -143,8 +151,13 @@ func (self *Handler) handle(t *testing.T, w http.ResponseWriter, req *http.Reque
 }
 
 func (self *Handler) runFinalChecks(t *testing.T) {
+	t.Logf("Running %d final checks on %s %s", len(self.finalChecks), self.method, self.path)
 	for _, check := range self.finalChecks {
-		check(t)
+		self.failed = check(t) || self.failed
+	}
+
+	if self.failed {
+		t.Fail()
 	}
 }
 
@@ -165,7 +178,7 @@ func (self *Handler) getBody() string {
 }
 
 func (self *Handler) incCounter() {
-	self.callCount += 1
+	self.callCount++
 }
 
 /*

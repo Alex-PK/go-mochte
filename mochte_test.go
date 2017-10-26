@@ -2,19 +2,27 @@ package mochte
 
 import (
 	"testing"
-	"log"
+	"net/http"
 )
 
 func TestBasics(t *testing.T) {
-	ms := New(t)
-	defer ms.Close()
+	s := New(t)
+	defer s.Close()
 
-	ms.Add(NewHandler().
+	s.
+	ListenOrdered().
+		Add(NewHandler().
 		Method(GET).
 		Path("/").
 		Status(200).
-		Body("OK..."),
+		Body("OK...").
+		AssertIsCalledAtLeastNTimes(1),
 	).Run()
 
-	log.Printf("%#v", ms)
+	res, err := http.Get(s.Url() + "/")
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("Result: %#v", res)
 }

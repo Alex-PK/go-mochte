@@ -37,7 +37,7 @@ const (
 )
 
 func (self *Server) Url() string {
-	return self.url
+	return "http://" + self.url
 }
 
 func (self *Server) Add(h *Handler) *Server {
@@ -58,7 +58,7 @@ func (self *Server) ListenAny() *Server {
 func (self *Server) Run() *Server {
 	go func() {
 		if err := self.srv.ListenAndServe(); err != nil {
-			self.t.Errorf("Unable to start HTTP server: %s", err)
+			self.t.Log(err)
 		}
 	}()
 
@@ -69,7 +69,11 @@ func (self *Server) Run() *Server {
 
 func (self *Server) Close() {
 	self.t.Log("Shutting down server")
-	self.srv.Shutdown(context.Background())
+	err := self.srv.Shutdown(context.Background())
+	if err != nil {
+		self.t.Fatal("Failed to shutdown the server")
+	}
+
 	for _, handler := range self.handlers {
 		handler.runFinalChecks(self.t)
 	}
