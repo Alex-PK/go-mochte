@@ -42,11 +42,20 @@ func NewServerOn(t *testing.T, addr string) *Server {
 const (
 	listenOrdered = iota
 	listenAny
+)
 
+const (
+	// DebugTrace allows to trace execution by logging calls even when there is no failure
+	DebugTrace   = 1 << iota
+
+	// DebugHeaders allows to dump request headers on every call
+	DebugHeaders
+
+	// DebugBody allows to dump the request body
+	DebugBody
+
+	// DebugNone disables tracing and debugging messages during assertions. Do not mix with other levels
 	DebugNone    = 0
-	DebugTrace   = 1 << 1
-	DebugHeaders = 1 << 2
-	DebugBody    = 1 << 3
 )
 
 // URL returns a URL that can be used by an HTTP Client to connect to the server
