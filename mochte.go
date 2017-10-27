@@ -1,10 +1,10 @@
 package mochte
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
-	"context"
 )
 
 // Server defines the mock HTTP server
@@ -46,7 +46,7 @@ const (
 
 const (
 	// DebugTrace allows to trace execution by logging calls even when there is no failure
-	DebugTrace   = 1 << iota
+	DebugTrace = 1 << iota
 
 	// DebugHeaders allows to dump request headers on every call
 	DebugHeaders
@@ -55,7 +55,7 @@ const (
 	DebugBody
 
 	// DebugNone disables tracing and debugging messages during assertions. Do not mix with other levels
-	DebugNone    = 0
+	DebugNone = 0
 )
 
 // URL returns a URL that can be used by an HTTP Client to connect to the server
@@ -153,7 +153,7 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	route := server.route(req)
 	if route == nil {
 		server.t.Errorf("Unexpected endpoint called: %s %s", req.Method, req.RequestURI)
-	} else if server.debugMode & DebugTrace > 0 {
+	} else if server.debugMode&DebugTrace > 0 {
 		server.t.Logf("Endpoint called: %s %s", req.Method, req.RequestURI)
 	}
 
