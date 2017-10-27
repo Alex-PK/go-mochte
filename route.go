@@ -174,10 +174,13 @@ func (route *Route) isHandling(req *http.Request) bool {
 	return true
 }
 
-func (route *Route) handle(t *testing.T, w http.ResponseWriter, req *http.Request) {
+func (route *Route) handle(t *testing.T, w http.ResponseWriter, req *http.Request, debugMode int) {
 	route.incCounter()
 
-	t.Logf("Running %d request checks on %s %s", len(route.runtimeChecks), route.method, route.path)
+	if debugMode&DebugTrace > 0 {
+		t.Logf("Running %d request checks on %s %s", len(route.runtimeChecks), route.method, route.path)
+	}
+
 	for _, check := range route.runtimeChecks {
 		route.failed = check(t) || route.failed
 	}
@@ -187,8 +190,11 @@ func (route *Route) handle(t *testing.T, w http.ResponseWriter, req *http.Reques
 	w.Write([]byte(route.getBody()))
 }
 
-func (route *Route) runFinalChecks(t *testing.T) {
-	t.Logf("Running %d final checks on %s %s", len(route.finalChecks), route.method, route.path)
+func (route *Route) runFinalChecks(t *testing.T, debugMode int) {
+	if debugMode&DebugTrace > 0 {
+		t.Logf("Running %d final checks on %s %s", len(route.finalChecks), route.method, route.path)
+	}
+
 	for _, check := range route.finalChecks {
 		route.failed = check(t) || route.failed
 	}

@@ -40,24 +40,6 @@ func NewServerOn(t *testing.T, addr string) *Server {
 	return server
 }
 
-const (
-	listenOrdered = iota
-	listenAny
-)
-
-const (
-	// DebugTrace allows to trace execution by logging calls even when there is no failure
-	DebugTrace = 1 << iota
-
-	// DebugHeaders allows to dump request headers on every call
-	DebugHeaders
-
-	// DebugBody allows to dump the request body
-	DebugBody
-
-	// DebugNone disables tracing and debugging messages during assertions. Do not mix with other levels
-	DebugNone = 0
-)
 
 // URL returns a URL that can be used by an HTTP Client to connect to the server
 func (server *Server) URL() string {
@@ -70,6 +52,11 @@ func (server *Server) Add(h *Route) *Server {
 	return server
 }
 
+// Debug allows to set the debug level during the tests execution
+//
+// Examples:
+//  server.Debug(mochte.DebugNone) // disables all the debug and trace messages
+//  server.Debug(mochte.DebugHeaders|mochte.DebugBody) // dumps headers and body for every request
 func (server *Server) Debug(d int) *Server {
 	server.debugMode = d
 	return server
@@ -120,7 +107,7 @@ func (server *Server) Close() {
 	}
 
 	for _, route := range server.routes {
-		route.runFinalChecks(server.t)
+		route.runFinalChecks(server.t, server.debugMode)
 	}
 }
 
@@ -177,5 +164,5 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	route.handle(server.t, w, req)
+	route.handle(server.t, w, req, server.debugMode)
 }
