@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 	"io/ioutil"
+	"bytes"
+	"io"
 )
 
 // Server defines the mock HTTP server
@@ -153,6 +155,15 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		body = []byte("")
+		server.t.Errorf("Unable to read the request body")
+	}
+	req.GetBody = func() (io.ReadCloser, error) {
+		r := bytes.NewReader(body)
+		return ioutil.NopCloser(r), nil
+	}
+
 	if err != nil {
 		server.t.Errorf("Unable to read the request body")
 	} else if server.debugMode&DebugBody > 0 {

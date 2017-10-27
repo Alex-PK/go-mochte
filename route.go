@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"io/ioutil"
 )
 
 // Route contains the definition of a route that can be added to the Server
@@ -166,12 +167,32 @@ func (route *Route) AssertIsCalledNoMoreThanNTimes(n int) *Route {
 	return route
 }
 
+// AssertHasContentType adds a check for the Content-type during request processing
 func (route *Route) AssertHasContentType(ct string) *Route {
 	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) checkResult {
 		contentType := req.Header.Get("Content-type")
 		if contentType == ct {
 			return check_OK
 		}
+		return check_FAIL
+	})
+	return route
+}
+
+// AssertHasContentType allows to add a custom function to check he body of the request
+func (route *Route) AssertWithBody(f func(t *testing.T, body []byte) bool) *Route {
+	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) checkResult {
+		reqBody, _ := req.GetBody()
+		body, err := ioutil.ReadAll(reqBody)
+		if err != nil {
+			t.Error("Unable to read body from request: %s", err)
+			return check_FAIL
+		}
+
+		if f(t, body) {
+			return check_OK
+		}
+
 		return check_FAIL
 	})
 	return route
