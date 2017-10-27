@@ -17,13 +17,20 @@ type Route struct {
 
 	callCount int
 
-	failed        bool
+	failed        checkResult
 	runtimeChecks []reqCheckFn
 	finalChecks   []simpleCheckFn
 }
 
-type simpleCheckFn func(*testing.T) bool
-type reqCheckFn func(*testing.T, *http.Request) bool
+type checkResult bool
+
+const (
+	check_OK   checkResult = false
+	check_FAIL checkResult = true
+)
+
+type simpleCheckFn func(*testing.T) checkResult
+type reqCheckFn func(*testing.T, *http.Request) checkResult
 
 // NewRoute creates a new route to be added to the server.
 //
@@ -125,47 +132,47 @@ func (route *Route) BodyFn(f func() string) *Route {
 
 // AssertIsCalledNTimes adds a (final) assertion checking that this route is called exactly n times during the test.
 func (route *Route) AssertIsCalledNTimes(n int) *Route {
-	route.finalChecks = append(route.finalChecks, func(t *testing.T) bool {
+	route.finalChecks = append(route.finalChecks, func(t *testing.T) checkResult {
 		if n != route.callCount {
 			t.Logf("Expecting handler to be called %d time(s), called %d time(s)", n, route.callCount)
-			return true
+			return check_FAIL
 		}
-		return false
+		return check_OK
 	})
 	return route
 }
 
 // AssertIsCalledAtLeastNTimes adds a (final) assertion checking that this route is called at least n times during the test.
 func (route *Route) AssertIsCalledAtLeastNTimes(n int) *Route {
-	route.finalChecks = append(route.finalChecks, func(t *testing.T) bool {
+	route.finalChecks = append(route.finalChecks, func(t *testing.T) checkResult {
 		if route.callCount < n {
 			t.Logf("Expecting handler to be called at least %d time(s), called %d time(s)", n, route.callCount)
-			return true
+			return check_FAIL
 		}
-		return false
+		return check_OK
 	})
 	return route
 }
 
 // AssertIsCalledNoMoreThanNTimes adds a (final) assertion checking that this route is called no more than n times during the test.
 func (route *Route) AssertIsCalledNoMoreThanNTimes(n int) *Route {
-	route.finalChecks = append(route.finalChecks, func(t *testing.T) bool {
+	route.finalChecks = append(route.finalChecks, func(t *testing.T) checkResult {
 		if route.callCount > n {
 			t.Logf("Expecting handler to be called at least %d time(s), called %d time(s)", n, route.callCount)
-			return true
+			return check_FAIL
 		}
-		return false
+		return check_OK
 	})
 	return route
 }
 
 func (route *Route) AssertHasContentType(ct string) *Route {
-	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) bool {
+	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) checkResult {
 		contentType := req.Header.Get("Content-type")
 		if contentType == ct {
-			return true
+			return check_OK
 		}
-		return false
+		return check_FAIL
 	})
 	return route
 }
