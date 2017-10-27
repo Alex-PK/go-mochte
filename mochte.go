@@ -15,6 +15,7 @@ type Server struct {
 	routes     []*Route
 	routeStep  int
 	listenMode int
+	debugMode  int
 }
 
 // NewServer creates a new test server on a random port on localhost.
@@ -30,6 +31,7 @@ func NewServerOn(t *testing.T, addr string) *Server {
 		routes:     []*Route{},
 		routeStep:  0,
 		listenMode: listenAny,
+		debugMode:  DebugNone,
 	}
 
 	server.srv = &http.Server{Addr: server.addr, Handler: server}
@@ -40,6 +42,11 @@ func NewServerOn(t *testing.T, addr string) *Server {
 const (
 	listenOrdered = iota
 	listenAny
+
+	DebugNone    = 0
+	DebugTrace   = 1 << 1
+	DebugHeaders = 1 << 2
+	DebugBody    = 1 << 3
 )
 
 // URL returns a URL that can be used by an HTTP Client to connect to the server
@@ -50,6 +57,11 @@ func (server *Server) URL() string {
 // Add allows to add a route handler to the list of tested routes
 func (server *Server) Add(h *Route) *Server {
 	server.routes = append(server.routes, h)
+	return server
+}
+
+func (server *Server) Debug(d int) *Server {
+	server.debugMode = d
 	return server
 }
 
@@ -108,6 +120,10 @@ func (server *Server) Close() {
 
 func (server *Server) route(req *http.Request) *Route {
 	if server.listenMode == listenOrdered {
+		if server.routeStep >= len(server.routes) {
+			return nil
+		}
+
 		route := server.routes[server.routeStep]
 		server.routeStep++
 		if route != nil && route.isHandling(req) {
@@ -128,6 +144,23 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	route := server.route(req)
 	if route == nil {
 		server.t.Errorf("Unexpected endpoint called: %s %s", req.Method, req.RequestURI)
+	} else if server.debugMode & DebugTrace > 0 {
+		server.t.Logf("Endpoint called: %s %s", req.Method, req.RequestURI)
+	}
+
+	if server.debugMode&DebugHeaders > 0 {
+		server.t.Log("  Headers:")
+		for k, v := range req.Header {
+			server.t.Logf("    %s: %v", k, v)
+		}
+	}
+
+	if server.debugMode&DebugBody > 0 {
+		server.t.Log("  Body:")
+		server.t.Logf("    %s", req.Body)
+	}
+
+	if route == nil {
 		return
 	}
 
