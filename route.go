@@ -18,11 +18,12 @@ type Route struct {
 	callCount int
 
 	failed        bool
-	runtimeChecks []checkFn
-	finalChecks   []checkFn
+	runtimeChecks []reqCheckFn
+	finalChecks   []simpleCheckFn
 }
 
-type checkFn func(*testing.T) bool
+type simpleCheckFn func(*testing.T) bool
+type reqCheckFn func(*testing.T, *http.Request) bool
 
 // NewRoute creates a new route to be added to the server.
 //
@@ -37,8 +38,8 @@ func NewRoute() *Route {
 
 		callCount: 0,
 
-		runtimeChecks: []checkFn{},
-		finalChecks:   []checkFn{},
+		runtimeChecks: []reqCheckFn{},
+		finalChecks:   []simpleCheckFn{},
 	}
 }
 
@@ -158,6 +159,17 @@ func (route *Route) AssertIsCalledNoMoreThanNTimes(n int) *Route {
 	return route
 }
 
+func (route *Route) AssertHasContentType(ct string) *Route {
+	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) bool {
+		contentType := req.Header.Get("Content-type")
+		if contentType == ct {
+			return true
+		}
+		return false
+	})
+	return route
+}
+
 /*
  * 	Server-called methods
  */
@@ -182,7 +194,7 @@ func (route *Route) handle(t *testing.T, w http.ResponseWriter, req *http.Reques
 	}
 
 	for _, check := range route.runtimeChecks {
-		route.failed = check(t) || route.failed
+		route.failed = check(t, req) || route.failed
 	}
 
 	w.Header().Add("Content-type", route.getContentType())
