@@ -26,8 +26,8 @@ type Route struct {
 type checkResult bool
 
 const (
-	check_OK   checkResult = false
-	check_FAIL checkResult = true
+	checkOK   checkResult = false
+	checkFAIL checkResult = true
 )
 
 type simpleCheckFn func(*testing.T) checkResult
@@ -136,9 +136,9 @@ func (route *Route) AssertIsCalledNTimes(n int) *Route {
 	route.finalChecks = append(route.finalChecks, func(t *testing.T) checkResult {
 		if n != route.callCount {
 			t.Logf("Expecting handler to be called %d time(s), called %d time(s)", n, route.callCount)
-			return check_FAIL
+			return checkFAIL
 		}
-		return check_OK
+		return checkOK
 	})
 	return route
 }
@@ -148,9 +148,9 @@ func (route *Route) AssertIsCalledAtLeastNTimes(n int) *Route {
 	route.finalChecks = append(route.finalChecks, func(t *testing.T) checkResult {
 		if route.callCount < n {
 			t.Logf("Expecting handler to be called at least %d time(s), called %d time(s)", n, route.callCount)
-			return check_FAIL
+			return checkFAIL
 		}
-		return check_OK
+		return checkOK
 	})
 	return route
 }
@@ -160,9 +160,9 @@ func (route *Route) AssertIsCalledNoMoreThanNTimes(n int) *Route {
 	route.finalChecks = append(route.finalChecks, func(t *testing.T) checkResult {
 		if route.callCount > n {
 			t.Logf("Expecting handler to be called at least %d time(s), called %d time(s)", n, route.callCount)
-			return check_FAIL
+			return checkFAIL
 		}
-		return check_OK
+		return checkOK
 	})
 	return route
 }
@@ -172,9 +172,9 @@ func (route *Route) AssertHasContentType(ct string) *Route {
 	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) checkResult {
 		contentType := req.Header.Get("Content-type")
 		if contentType == ct {
-			return check_OK
+			return checkOK
 		}
-		return check_FAIL
+		return checkFAIL
 	})
 	return route
 }
@@ -186,14 +186,14 @@ func (route *Route) AssertWithBody(f func(t *testing.T, body []byte) bool) *Rout
 		body, err := ioutil.ReadAll(reqBody)
 		if err != nil {
 			t.Error("Unable to read body from request: %s", err)
-			return check_FAIL
+			return checkFAIL
 		}
 
 		if f(t, body) {
-			return check_OK
+			return checkOK
 		}
 
-		return check_FAIL
+		return checkFAIL
 	})
 	return route
 }

@@ -92,7 +92,8 @@ func (server *Server) Run() *Server {
 		}
 	}()
 
-	time.Sleep(100 * time.Millisecond)
+	// There is no way to know when the server is really listening. Wait for a bit and cross fingers...
+	time.Sleep(250 * time.Millisecond)
 
 	return server
 }
