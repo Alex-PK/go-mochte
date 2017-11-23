@@ -1,13 +1,13 @@
 package mochte
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
-	"io/ioutil"
-	"bytes"
-	"io"
 )
 
 // Server defines the mock HTTP server
@@ -41,7 +41,6 @@ func NewServerOn(t *testing.T, addr string) *Server {
 
 	return server
 }
-
 
 // URL returns a URL that can be used by an HTTP Client to connect to the server
 func (server *Server) URL() string {
@@ -111,6 +110,13 @@ func (server *Server) Close() {
 
 	for _, route := range server.routes {
 		route.runFinalChecks(server.t, server.debugMode)
+	}
+
+	if server.listenMode == listenOrdered && server.routeStep < len(server.routes) {
+		server.t.Errorf("Expecting more calls: %d route(s) not called", len(server.routes)-server.routeStep)
+		for i:= server.routeStep; i< len(server.routes); i++ {
+			server.t.Errorf("Route not called: %s %s", server.routes[i].method, server.routes[i].path)
+		}
 	}
 }
 
