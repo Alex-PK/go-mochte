@@ -102,7 +102,9 @@ func (server *Server) Run() *Server {
 // This function must be called at the end of the test case (or with defer) to turn off the server and
 // run the final tests.
 func (server *Server) Close() {
-	server.t.Log("Shutting down server")
+	if server.debugMode&DebugTrace > 0 {
+		server.t.Log("Shutting down server")
+	}
 	err := server.srv.Shutdown(context.Background())
 	if err != nil {
 		server.t.Fatal("Failed to shutdown the server")
@@ -114,7 +116,7 @@ func (server *Server) Close() {
 
 	if server.listenMode == listenOrdered && server.routeStep < len(server.routes) {
 		server.t.Errorf("Expecting more calls: %d route(s) not called", len(server.routes)-server.routeStep)
-		for i:= server.routeStep; i< len(server.routes); i++ {
+		for i := server.routeStep; i < len(server.routes); i++ {
 			server.t.Errorf("Route not called: %s %s", server.routes[i].method, server.routes[i].path)
 		}
 	}
