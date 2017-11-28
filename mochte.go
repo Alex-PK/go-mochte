@@ -127,15 +127,24 @@ func (server *Server) Close() {
  */
 
 func (server *Server) route(req *http.Request) *Route {
+	defer func() { server.routeStep++ }()
+
 	if server.listenMode == listenOrdered {
 		if server.routeStep >= len(server.routes) {
 			return nil
 		}
 
 		route := server.routes[server.routeStep]
-		server.routeStep++
-		if route != nil && route.isHandling(req) {
-			return route
+		if route != nil {
+			if route.isHandling(req) {
+				return route
+			} else {
+				server.t.Errorf("Unexpected endpoint called (step %d). Expecting %s %s. Got %s %s",
+					server.routeStep,
+					route.method, route.path,
+					req.Method, req.URL.Path,
+				)
+			}
 		}
 	} else {
 		for _, route := range server.routes {
@@ -151,7 +160,7 @@ func (server *Server) route(req *http.Request) *Route {
 func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	route := server.route(req)
 	if route == nil {
-		server.t.Errorf("Unexpected endpoint called: %s %s", req.Method, req.RequestURI)
+		server.t.Errorf("Unexpected endpoint called (step %d): %s %s", server.routeStep, req.Method, req.RequestURI)
 	} else if server.debugMode&DebugTrace > 0 {
 		server.t.Logf("Endpoint called: %s %s", req.Method, req.RequestURI)
 	}
