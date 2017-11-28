@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"io/ioutil"
+	"net/url"
 )
 
 // Route contains the definition of a route that can be added to the Server
@@ -179,7 +180,20 @@ func (route *Route) AssertHasContentType(ct string) *Route {
 	return route
 }
 
-// AssertHasContentType allows to add a custom function to check he body of the request
+// AssertWithQuery allows to add a custom function to check the query parameters of the request
+func (route *Route) AssertWithQuery(f func(t *testing.T, query url.Values) bool) *Route {
+	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) checkResult {
+		query := req.URL.Query()
+		if f(t, query) {
+			return checkOK
+		}
+
+		return checkFAIL
+	})
+	return route
+}
+
+// AssertWithBody allows to add a custom function to check the body of the request
 func (route *Route) AssertWithBody(f func(t *testing.T, body []byte) bool) *Route {
 	route.runtimeChecks = append(route.runtimeChecks, func(t *testing.T, req *http.Request) checkResult {
 		reqBody, _ := req.GetBody()
